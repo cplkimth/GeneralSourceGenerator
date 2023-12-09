@@ -27,13 +27,7 @@ namespace System
 ";
 
     private const string ClassTemplate = 
-@"using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Net.Http;
-using System.Threading;
-using System.Threading.Tasks;
+@"{3}
 
 namespace {0}
 {{
@@ -87,10 +81,15 @@ namespace {0}
         var methodSymbol = model.GetDeclaredSymbol(method);
         string namespaceName = methodSymbol.ContainingNamespace.ToDisplayString();
         var className = methodSymbol.ContainingType.Name;
+        
+        var root = method.SyntaxTree.GetRoot() as CompilationUnitSyntax;
+        var usingCode = root.Usings.ToFullString();
+        Console.WriteLine(usingCode);
+
 
         string methodCode = Generate(methods.Distinct());
 
-        var classCode = string.Format(ClassTemplate, namespaceName, className, methodCode);
+        var classCode = string.Format(ClassTemplate, namespaceName, className, methodCode, usingCode);
         context.AddSource($"{className}_asyncify.cs", SourceText.From(classCode, Encoding.UTF8));
     }
 
