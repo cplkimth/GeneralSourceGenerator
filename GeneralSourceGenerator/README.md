@@ -1,7 +1,32 @@
 ﻿# General Source Generator
 
 ## Asyncifier
-wrapper of https://mazeez.dev/posts/csharp-source-generators
+create async methods from sync ones.
+
+### usage
+1. Add [Asyncify] attribute to each sync method.
+2. Make containng class partial.
+
+```
+public partial class Calculator
+{
+    [Asyncify]
+    public static int Sum(int a, int b) => a + b;
+    
+    [Asyncify]
+    public static int Sum(int a, int b, int c) => a + b + c; // can overload
+    
+    [Asyncify]
+    public static int ToDouble(int a) => a * 2;
+    
+    [Asyncify]
+    public static int SumAll(params int[] array) => array.Sum(); // params keyword will be gone
+
+    [Asyncify]
+    public List<int> GetList(int a, int b) => [a + b, a - b]; // can return List<T>
+}
+```
+
 
 
 Check out README.md in GitHub repository for basic usage and examples.

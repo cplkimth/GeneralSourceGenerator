@@ -15,13 +15,4 @@ public partial class Program
     
     [Asyncify]
     int Func3(int number) => number * 2;
-
-    [Zomp.SyncMethodGenerator.CreateSyncVersion]
-    static async Task WriteAsync(ReadOnlyMemory<byte> buffer, Stream stream, 
-        CancellationToken ct)
-        => await stream.WriteAsync(buffer, ct).ConfigureAwait(true);
-
-    [Zomp.SyncMethodGenerator.CreateSyncVersionAttribute]
-    static void Write2(global::System.ReadOnlySpan<byte> buffer, global::System.IO.Stream stream)
-        => stream.Write(buffer);
 }

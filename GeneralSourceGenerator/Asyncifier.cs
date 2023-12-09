@@ -4,13 +4,14 @@ using Microsoft.CodeAnalysis.Text;
 using Microsoft.CodeAnalysis;
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 
 namespace GeneralSourceGenerator;
 
 [Generator]
-public class Asyncifier : ISourceGenerator
+public class Asyncifier : IIncrementalGenerator
 {
     private const string AttributeText = @"
 namespace System
@@ -42,44 +43,58 @@ namespace {0}
     }}
 }}";
 
-    public void Initialize(GeneratorInitializationContext context)
+    public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        context.RegisterForSyntaxNotifications(() => new SyntaxReceiver());
+        context.RegisterPostInitializationOutput((ctx) =>
+        {
+            ctx.AddSource("AsyncifyAttribute.cs", SourceText.From(AttributeText, Encoding.UTF8));
+        });
+
+
+        var methods = context.SyntaxProvider.CreateSyntaxProvider(
+                static (node, _) => HasAsyncify(node),
+                static (ctx, _) => SelectMethod(ctx))
+            .Where(static x => x is not null);
+
+        var collection = context.CompilationProvider.Combine(methods.Collect());
+
+        context.RegisterSourceOutput(collection, static (spc, source) => Execute(source.Item1, source.Item2, spc));
     }
 
-    public void Execute(GeneratorExecutionContext context)
+    static bool HasAsyncify(SyntaxNode node)
     {
-        // add the attribute text
-        context.AddSource("AsyncifyAttribute", SourceText.From(AttributeText, Encoding.UTF8));
+        if (node is not MethodDeclarationSyntax methodDeclarationSyntax) 
+            return false;
 
-        // retreive the populated receiver 
-        if (!(context.SyntaxReceiver is SyntaxReceiver receiver))
+        return methodDeclarationSyntax.AttributeLists
+            .Any(x => x.Attributes
+                .Any(y => Names.Contains(y.Name.ToString())));
+    }
+
+    static MethodDeclarationSyntax SelectMethod(GeneratorSyntaxContext context)
+    {
+        return context.Node as MethodDeclarationSyntax;
+    }
+
+    static void Execute(Compilation compilation, ImmutableArray<MethodDeclarationSyntax> methods, SourceProductionContext context)
+    {
+        if (methods.IsDefaultOrEmpty)
             return;
 
-        CSharpParseOptions options = (context.Compilation as CSharpCompilation).SyntaxTrees[0].Options as CSharpParseOptions;
-        Compilation compilation = context.Compilation.AddSyntaxTrees(CSharpSyntaxTree.ParseText(SourceText.From(AttributeText, Encoding.UTF8), options));
-
-        var method = receiver.CandidateMethods.FirstOrDefault();
-        if (method == null)
-            return;
-
-        if (method.Identifier.Text.EndsWith("Async"))
-            return;
+        var method = methods.First();
 
         SemanticModel model = compilation.GetSemanticModel(method.SyntaxTree);
         var methodSymbol = model.GetDeclaredSymbol(method);
+        string namespaceName = methodSymbol.ContainingNamespace.ToDisplayString();
         var className = methodSymbol.ContainingType.Name;
 
-        string namespaceName = methodSymbol.ContainingType.ContainingNamespace.ToDisplayString();
-
-        string methodCode = Generate(receiver.CandidateMethods);
+        string methodCode = Generate(methods.Distinct());
 
         var classCode = string.Format(ClassTemplate, namespaceName, className, methodCode);
-
         context.AddSource($"{className}_asyncify.cs", SourceText.From(classCode, Encoding.UTF8));
     }
 
-    private string Generate(List<MethodDeclarationSyntax> methods)
+    private static string Generate(IEnumerable<MethodDeclarationSyntax> methods)
     {
         StringBuilder builder = new();
         foreach (var method in methods)
@@ -87,25 +102,6 @@ namespace {0}
 
         return builder.ToString();
     }
-}
 
-/// <summary>
-/// Created on demand before each generation pass
-/// </summary>
-class SyntaxReceiver : ISyntaxReceiver
-{
     private static readonly string[] Names = ["Asyncify", "System.Asyncify", "AsyncifyAttribute", "System.AsyncifyAttribute"];
-
-    public List<MethodDeclarationSyntax> CandidateMethods { get; } = new();
-
-    public void OnVisitSyntaxNode(SyntaxNode syntaxNode)
-    {
-        if (syntaxNode is not MethodDeclarationSyntax methodDeclarationSyntax) 
-            return;
-
-        if (methodDeclarationSyntax.AttributeLists
-            .Any(x => x.Attributes
-                .Any(y => Names.Contains(y.Name.ToString()))))
-            CandidateMethods.Add(methodDeclarationSyntax);
-    }
 }
