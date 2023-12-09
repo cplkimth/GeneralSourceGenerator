@@ -25,75 +25,8 @@ namespace System
 }
 ";
 
-    private string ProcessClass(INamedTypeSymbol classSymbol, List<IMethodSymbol> methods)
-    {
-        if (!classSymbol.ContainingSymbol.Equals(classSymbol.ContainingNamespace, SymbolEqualityComparer.Default))
-        {
-            return null; //TODO: issue a diagnostic that it must be top level
-        }
-
-        string namespaceName = classSymbol.ContainingNamespace.ToDisplayString();
-
-        // begin building the generated source
-        StringBuilder source = new StringBuilder(
-            $$"""
-              using System;
-              using System.Collections.Generic;
-              using System.IO;
-              using System.Linq;
-              using System.Net.Http;
-              using System.Threading;
-              using System.Threading.Tasks;
-
-              namespace {{namespaceName}}
-              {
-                 public partial class {{classSymbol.Name}}
-                 {
-              """);
-
-        // create properties for each field 
-        foreach (var methodSymbol in methods)
-        {
-            ProcessMethod(source, methodSymbol);
-        }
-
-        source.Append("} }");
-        return source.ToString();
-    }
-
-    private void ProcessMethod(StringBuilder source, IMethodSymbol methodSymbol)
-    {
-        if (methodSymbol.IsAsync)
-        {
-            // Already async, maybe emit a diagnostic?
-            return;
-        }
-
-        // SayHello => SayHelloAsync
-        string asyncMethodName = $"{methodSymbol.Name}Async";
-        var staticModifier = methodSymbol.IsStatic ? "static" : string.Empty;
-
-        // void => Task, bool => Task<bool>
-        var asyncReturnType = methodSymbol.ReturnType.Name == "Void" ? 
-            "Task" :
-            $"Task<{methodSymbol.ReturnType.Name}>";
-
-        // int number, string name
-        var parameters = string.Join(",", methodSymbol.Parameters.Select(p => $"{p.Type} {p.Name}"));
-        // number, name
-        var arguments = string.Join(",", methodSymbol.Parameters.Select(p => p.Name));
-
-        source.Append($@"
-            public {staticModifier} {asyncReturnType} {asyncMethodName}({parameters})
-            {{
-                return Task.Run(() => {methodSymbol.Name}({arguments}));
-            }}
-            ");
-    }
-
     public void Initialize(GeneratorInitializationContext context)
     {
-        // Register a factory that can create our custom syntax receiver
         context.RegisterForSyntaxNotifications(() => new SyntaxReceiver());
     }
 
@@ -106,31 +39,57 @@ namespace System
         if (!(context.SyntaxReceiver is SyntaxReceiver receiver))
             return;
 
-        // we're going to create a new compilation that contains the attribute.
-        // TODO: we should allow source generators to provide source during initialize, so that this step isn't required.
         CSharpParseOptions options = (context.Compilation as CSharpCompilation).SyntaxTrees[0].Options as CSharpParseOptions;
         Compilation compilation = context.Compilation.AddSyntaxTrees(CSharpSyntaxTree.ParseText(SourceText.From(AttributeText, Encoding.UTF8), options));
 
-        // get the newly bound attribute, and INotifyPropertyChanged
-        INamedTypeSymbol attributeSymbol = compilation.GetTypeByMetadataName("System.AsyncifyAttribute");
+        var method = receiver.CandidateMethods.FirstOrDefault();
+        if (method == null)
+            return;
 
-        // loop over the candidate fields, and keep the ones that are actually annotated
-        List<IMethodSymbol> methodSymbols = new List<IMethodSymbol>();
-        foreach (var method in receiver.CandidateMethods)
-        {
-            SemanticModel model = compilation.GetSemanticModel(method.SyntaxTree);
-            var methodSymbol = model.GetDeclaredSymbol(method);
-            if (methodSymbol.GetAttributes().Any(ad => ad.AttributeClass.Equals(attributeSymbol, SymbolEqualityComparer.Default)))
-            {
-                methodSymbols.Add(methodSymbol);
-            }
-        }
+        if (method.Identifier.Text.EndsWith("Async"))
+            return;
 
-        foreach (var group in methodSymbols.GroupBy(f => f.ContainingType))
-        {
-            string classSource = ProcessClass(group.Key, group.ToList());
-            context.AddSource($"{group.Key.Name}_asyncify.cs", SourceText.From(classSource, Encoding.UTF8));
-        }
+        SemanticModel model = compilation.GetSemanticModel(method.SyntaxTree);
+        var methodSymbol = model.GetDeclaredSymbol(method);
+        var className = methodSymbol.ContainingType.Name;
+
+        string namespaceName = methodSymbol.ContainingType.ContainingNamespace.ToDisplayString();
+
+        var methodName = method.Identifier.Text;
+        string methodCode = Generate(receiver.CandidateMethods);
+
+        StringBuilder source = new StringBuilder(
+            $$"""
+              using System;
+              using System.Collections.Generic;
+              using System.IO;
+              using System.Linq;
+              using System.Net.Http;
+              using System.Threading;
+              using System.Threading.Tasks;
+
+              namespace {{namespaceName}}
+              {
+                 public partial class {{className}}
+                 {
+                    {{methodCode}}
+                 }
+              }
+              """
+            );
+
+        context.AddSource($"{className}_asyncify.cs", SourceText.From(source.ToString(), Encoding.UTF8));
+    }
+
+    private string Generate(List<MethodDeclarationSyntax> methods)
+    {
+        StringBuilder builder = new();
+        foreach (var method in methods)
+            builder.AppendLine(Generator.Generate(method.ToString()));
+
+        builder.Replace("[Asyncify]", string.Empty);
+
+        return builder.ToString();
     }
 }
 
