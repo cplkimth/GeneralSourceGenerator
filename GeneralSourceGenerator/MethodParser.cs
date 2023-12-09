@@ -29,7 +29,9 @@ public class MethodParser
 
     private static Method ParseMethod(MethodDeclarationSyntax syntax, string code)
     {
-        var parameters = syntax.ParameterList.Parameters.Select(x => new Parameter(FromTypeSyntax(code, x.Type!), x.Identifier.Text));
+        var parameters = syntax.ParameterList.Parameters.Select(
+            x => new Parameter(FromTypeSyntax(code, x.Type!), x.Identifier.Text, x.Default)
+            );
 
         var attributes = string.Join("\r\n", syntax.AttributeLists.Select(x => x.ToString()));
         

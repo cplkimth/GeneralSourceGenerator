@@ -12,6 +12,9 @@ public partial class Calculator
     public static int ToDouble(int a) => a * 2;
     
     [Asyncify]
+    public static int ToTriple(int a = 3) => a * 3;
+    
+    [Asyncify]
     public static int SumAll(params int[] array) => array.Sum();
 
     [Asyncify]

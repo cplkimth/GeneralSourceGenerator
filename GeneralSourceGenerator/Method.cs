@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace GeneralSourceGenerator;
 
@@ -43,9 +44,18 @@ public class Method(string modifier, string attribute, string name, string retur
     }
 }
 
-public class Parameter(string type, string name)
+public class Parameter(string type, string name, EqualsValueClauseSyntax argDefault)
 {
-    public override string ToString() => $"{Type} {Name}";
     public string Type { get; } = type;
     public string Name { get; } = name;
+    public EqualsValueClauseSyntax ArgDefault { get; } = argDefault;
+
+    public override string ToString()
+    {
+        return ArgDefault switch
+        {
+            null => $"{Type} {Name}",
+            _ => $"{Type} {Name} = {ArgDefault.Value}",
+        };
+    }
 }

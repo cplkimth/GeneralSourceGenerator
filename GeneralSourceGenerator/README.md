@@ -18,6 +18,9 @@ public partial class Calculator
     
     [Asyncify]
     public static int ToDouble(int a) => a * 2;
+
+    [Asyncify]
+    public static int ToTriple(int a = 3) => a * 3; // can have default parameter value
     
     [Asyncify]
     public static int SumAll(params int[] array) => array.Sum(); // params keyword will be gone

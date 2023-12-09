@@ -8,7 +8,11 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="GeneralSourceGenerator" Version="1.0.3" />
+	  <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\GeneralSourceGenerator\GeneralSourceGenerator.csproj" />
 	</ItemGroup>
 
 </Project>

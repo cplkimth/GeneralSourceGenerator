@@ -40,4 +40,25 @@ public partial class AsyncifierTest
         Assert.AreEqual(3, values[0]);
         Assert.AreEqual(-1, values[1]);
     }
+
+    [TestMethod()]
+    public void ToDouble()
+    {
+        var sum = Calculator.ToDoubleAsync(3).Result;
+        Assert.AreEqual(6, sum);
+    }
+
+    [TestMethod()]
+    public void ToTriple()
+    {
+        var sum = Calculator.ToTripleAsync().Result;
+        Assert.AreEqual(9, sum);
+    }
+
+    [TestMethod()]
+    public void ToTripleWithArgument()
+    {
+        var sum = Calculator.ToTripleAsync(4).Result;
+        Assert.AreEqual(12, sum);
+    }
 }
