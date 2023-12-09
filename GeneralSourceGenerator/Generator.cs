@@ -15,7 +15,7 @@ public class Generator
             if (method.Name.EndsWith("Async"))
                 continue;
 
-            string line = method.ToAsyncText() + "\r\n";
+            string line = method.ToAsyncText();
             builder.AppendLine(line);
         }
 

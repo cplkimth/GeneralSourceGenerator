@@ -38,7 +38,6 @@ public class Method(string modifier, string attribute, string name, string retur
         string names = string.Join(", ", Parameters.Select(x => x.Name));
 
         return $"""
-                {Attribute}
                 {Modifier} {AsyncReturnType} {Name}Async({typeAndNames}) => Task.Run(() => {Name}({names}));
                 """;
     }

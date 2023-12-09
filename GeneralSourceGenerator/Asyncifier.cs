@@ -16,7 +16,7 @@ public class Asyncifier : ISourceGenerator
 namespace System
 {
     [AttributeUsage(AttributeTargets.Method, Inherited = false, AllowMultiple = false)]
-    sealed class AsyncifyAttribute : Attribute
+    public sealed class AsyncifyAttribute : Attribute
     {
         public AsyncifyAttribute()
         {
@@ -24,6 +24,23 @@ namespace System
     }
 }
 ";
+
+    private const string ClassTemplate = 
+@"using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Net.Http;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace {0}
+{{
+    public partial class {1}
+    {{
+       {2}
+    }}
+}}";
 
     public void Initialize(GeneratorInitializationContext context)
     {
@@ -55,30 +72,11 @@ namespace System
 
         string namespaceName = methodSymbol.ContainingType.ContainingNamespace.ToDisplayString();
 
-        var methodName = method.Identifier.Text;
         string methodCode = Generate(receiver.CandidateMethods);
 
-        StringBuilder source = new StringBuilder(
-            $$"""
-              using System;
-              using System.Collections.Generic;
-              using System.IO;
-              using System.Linq;
-              using System.Net.Http;
-              using System.Threading;
-              using System.Threading.Tasks;
+        var classCode = string.Format(ClassTemplate, namespaceName, className, methodCode);
 
-              namespace {{namespaceName}}
-              {
-                 public partial class {{className}}
-                 {
-                    {{methodCode}}
-                 }
-              }
-              """
-            );
-
-        context.AddSource($"{className}_asyncify.cs", SourceText.From(source.ToString(), Encoding.UTF8));
+        context.AddSource($"{className}_asyncify.cs", SourceText.From(classCode, Encoding.UTF8));
     }
 
     private string Generate(List<MethodDeclarationSyntax> methods)
@@ -86,8 +84,6 @@ namespace System
         StringBuilder builder = new();
         foreach (var method in methods)
             builder.AppendLine(Generator.Generate(method.ToString()));
-
-        builder.Replace("[Asyncify]", string.Empty);
 
         return builder.ToString();
     }
@@ -98,18 +94,18 @@ namespace System
 /// </summary>
 class SyntaxReceiver : ISyntaxReceiver
 {
-    public List<MethodDeclarationSyntax> CandidateMethods { get; } = new List<MethodDeclarationSyntax>();
+    private static readonly string[] Names = ["Asyncify", "System.Asyncify", "AsyncifyAttribute", "System.AsyncifyAttribute"];
 
-    /// <summary>
-    /// Called for every syntax node in the compilation, we can inspect the nodes and save any information useful for generation
-    /// </summary>
+    public List<MethodDeclarationSyntax> CandidateMethods { get; } = new();
+
     public void OnVisitSyntaxNode(SyntaxNode syntaxNode)
     {
-        // any method with at least one attribute is a candidate for property generation
-        if (syntaxNode is MethodDeclarationSyntax methodDeclarationSyntax
-            && methodDeclarationSyntax.AttributeLists.Count > 0)
-        {
+        if (syntaxNode is not MethodDeclarationSyntax methodDeclarationSyntax) 
+            return;
+
+        if (methodDeclarationSyntax.AttributeLists
+            .Any(x => x.Attributes
+                .Any(y => Names.Contains(y.Name.ToString()))))
             CandidateMethods.Add(methodDeclarationSyntax);
-        }
     }
 }
