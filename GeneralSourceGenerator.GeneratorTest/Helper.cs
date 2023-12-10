@@ -1,5 +1,9 @@
-﻿using SomeNamespace;
+﻿#region MyRegion
+
+using SomeNamespace;
 using System.Data.Common;
+
+#endregion
 
 namespace GeneralSourceGenerator.GeneratorTest;
 

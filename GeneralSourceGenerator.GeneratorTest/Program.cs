@@ -6,9 +6,13 @@ internal class Program
     {
         const string source =
             """
+              #region MyRegion
+              
               using SomeNamespace;
               using System.Data.Common;
 
+              #endregion
+              
               namespace GeneralSourceGenerator.GeneratorTest;
 
               public class Helper

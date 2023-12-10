@@ -14,6 +14,9 @@ public class MethodParser
         var syntaxTree = CSharpSyntaxTree.ParseText(code);
         var root = syntaxTree.GetRoot() as CompilationUnitSyntax;
 
+        var span = root.Usings.ToString();
+        Console.WriteLine(span);
+
         var methodDeclarations = root!.DescendantNodesAndSelf().OfType<MethodDeclarationSyntax>().ToList();
 
         if (methodDeclarations.Any())

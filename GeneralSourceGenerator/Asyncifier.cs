@@ -75,22 +75,30 @@ namespace {0}
         if (methods.IsDefaultOrEmpty)
             return;
 
-        var method = methods.First();
+        IEnumerable<(MethodDeclarationSyntax Syntax, IMethodSymbol Symbol)> methodSymbols = methods.Select(x =>
+        {
+            SemanticModel model = compilation.GetSemanticModel(x.SyntaxTree);
+            return (x, model.GetDeclaredSymbol(x));
+        });
 
-        SemanticModel model = compilation.GetSemanticModel(method.SyntaxTree);
-        var methodSymbol = model.GetDeclaredSymbol(method);
-        string namespaceName = methodSymbol.ContainingNamespace.ToDisplayString();
-        var className = methodSymbol.ContainingType.Name;
+        foreach (var group in methodSymbols.GroupBy(x => x.Symbol.ContainingType))
+        {
+            var syntax = group.Select(x => x.Syntax).First();
+            var symbol = group.Select(x => x.Symbol).First();
+
+            string namespaceName = symbol.ContainingNamespace.ToDisplayString();
+            var className = symbol.ContainingType.Name;
         
-        var root = method.SyntaxTree.GetRoot() as CompilationUnitSyntax;
-        var usingCode = root.Usings.ToFullString();
-        Console.WriteLine(usingCode);
+            var root = syntax.SyntaxTree.GetRoot() as CompilationUnitSyntax;
+            var usingCode = root.Usings.ToString();
+            Console.WriteLine(usingCode);
 
 
-        string methodCode = Generate(methods.Distinct());
+            string methodCode = Generate(group.Select(x => x.Syntax).Distinct());
 
-        var classCode = string.Format(ClassTemplate, namespaceName, className, methodCode, usingCode);
-        context.AddSource($"{className}_asyncify.cs", SourceText.From(classCode, Encoding.UTF8));
+            var classCode = string.Format(ClassTemplate, namespaceName, className, methodCode, usingCode);
+            context.AddSource($"{className}_asyncify.cs", SourceText.From(classCode, Encoding.UTF8));
+        }
     }
 
     private static string Generate(IEnumerable<MethodDeclarationSyntax> methods)
